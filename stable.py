@@ -5,6 +5,7 @@ from binascii import hexlify
 import msgpack
 import socket
 import lifx
+import time
 
 stable = { 'id': 'LiFX'}
 
@@ -17,6 +18,7 @@ for i, l in enumerate(lifx.get_lights()):
 
 stable['trSetup'] = {'s': ""}
 stable['trAbort'] = {'s': ""}
+stable['getTime'] = {'s': ""}
 
 print(_lights)
 
@@ -48,6 +50,8 @@ class LiFXService(DatagramProtocol):
             success = self.trSetup(cmd, addr)
         elif cmd[0] == 'trAbort':
             success = self.trAbort(cmd)
+        elif cmd[0] == 'getTime':
+            self.getTime()
         else:
             self.doCmd(cmd[0],cmd[1], addr)
 
@@ -61,13 +65,13 @@ class LiFXService(DatagramProtocol):
             self.transport.write(msgpack.packb({'error': False}), addr)
 
     def trSetup(self, cmd, addr):
-        tx_id, time, fn, arglist = cmd[1]
+        tx_id, runtime, fn, arglist = cmd[1]
         fn = fn.decode(encoding='utf-8')
         if tx_id in transactions:
             self.sendError('already has tx with ID {0}'.format(tx_id), addr)
             return
         
-        transactions[tx_id] = reactor.callLater(time, lambda : self.doCmd(fn, arglist[0], addr))
+        transactions[tx_id] = reactor.callLater(runtime - int(time.time()), lambda : self.doCmd(fn, arglist[0], addr))
         return True
 
     def trAbort(self, cmd):
@@ -76,8 +80,12 @@ class LiFXService(DatagramProtocol):
                 transactions[tx_id].cancel()
                 del transactions[tx_id]
         return True
+    
+    def getTime(self):
+        return int(time.time())
 
     def set(self, cmd, addr):
+        print('SET',cmd)
         if isinstance(cmd[1], list) and len(cmd[1]) == 3:
             colors = map(lambda x: x / 255., cmd[1])
             h,s,b = RGBtoHSB(*colors)
@@ -90,6 +98,7 @@ class LiFXService(DatagramProtocol):
         return True
 
     def pow(self, cmd, addr):
+        print('POW',cmd)
         if isinstance(cmd[1], int) and 0 <= cmd[1] and 100 >= cmd[1]:
             l = _lights[cmd[0]]
             l.set_power(cmd[1] > 0)
