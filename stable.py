@@ -72,6 +72,7 @@ class LiFXService(DatagramProtocol):
             return
         
         transactions[tx_id] = reactor.callLater(runtime - int(time.time()), lambda : self.doCmd(fn, arglist[0], addr))
+        reactor.callLater(runtime - int(time.time()), lambda : transactions.pop(tx_id))
         return True
 
     def trAbort(self, cmd):
@@ -91,6 +92,12 @@ class LiFXService(DatagramProtocol):
             h,s,b = RGBtoHSB(*colors)
             l = _lights[cmd[0]]
             l.set_power(True)
+            print(h,s,b)
+            if s == 0:
+                s = 1
+            if b == 0:
+                b = 1
+            print(int((h / 360.) * 0xffff), int(s * 0xffff), int(b * 0xffff), 6500, 100)
             l.set_color(int((h / 360.) * 0xffff), int(s * 0xffff), int(b * 0xffff), 6500, 100)
         else:
             self.sendError('argument {0} to {1} was invalid. Expected length-3 array'.format(cmd[1],cmd[0]), addr)
@@ -113,9 +120,10 @@ def RGBtoHSB(r,g,b):
     max_col = max(r,g,b)
     brightness = max_col
     delta = max_col - min_col
-    if max != 0:
+    if max_col != 0:
         saturation = delta / float(max_col)
     else:
+        print('case 2')
         saturation = 0
         hue = -1
         return hue, saturation, brightness
