@@ -46,7 +46,7 @@ class LiFXService(DatagramProtocol):
         success = False
         if cmd[0] == 'trSetup':
             success = self.trSetup(cmd, addr)
-        if cmd[0] == 'trAbort':
+        elif cmd[0] == 'trAbort':
             success = self.trAbort(cmd)
         else:
             self.doCmd(cmd[0],cmd[1], addr)
@@ -62,15 +62,19 @@ class LiFXService(DatagramProtocol):
 
     def trSetup(self, cmd, addr):
         tx_id, time, fn, arglist = cmd[1]
+        fn = fn.decode(encoding='utf-8')
         if tx_id in transactions:
             self.sendError('already has tx with ID {0}'.format(tx_id), addr)
             return
         
-        transactions[tx_id] = reactor.callLater(time, lambda : self.doCmd(fn, arglist, addr))
+        transactions[tx_id] = reactor.callLater(time, lambda : self.doCmd(fn, arglist[0], addr))
         return True
 
     def trAbort(self, cmd):
         tx_id = cmd[1]
+        if transactions[tx_id]:
+                transactions[tx_id].cancel()
+                del transactions[tx_id]
         return True
 
     def set(self, cmd, addr):
